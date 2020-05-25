@@ -1,0 +1,7 @@
+(executable
+ (name main)
+ (ocamlopt_flags "-O3")
+ (modes exe)
+ (libraries bos cmdliner fpath betterboy rresult tsdl
+            notty notty.lwt nottui nottui-lwt astring
+            nottui-widgets pretty_opcodes))
