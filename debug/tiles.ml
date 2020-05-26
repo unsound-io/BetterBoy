@@ -30,7 +30,6 @@ let get_tile (m : Machine.t) tile_number =
   let tile_data_ptr = 0x8000 + (Uint8.proj tile_number) * 0x10 in
   pxmatrix 8 4 begin fun x y ->
     let tile_data_ptr = tile_data_ptr + (y * 2) in
-    Printf.printf "%d %d %04X\n" x y (tile_data_ptr);
     let b1 = Mmu.get m tile_data_ptr in
     let b2 = Mmu.get m (tile_data_ptr + 1) in
     let bit = 7 - x mod 8 in
@@ -53,3 +52,5 @@ let get_tiles (m : Machine.t) tiles =
     List.map (fun i -> get_tile m i) l |> Notty.I.hcat
   end tiles
   |> Notty.I.vcat
+
+let tile_addr tile =  0x8000 + tile * 0x10
