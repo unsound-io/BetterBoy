@@ -17,7 +17,7 @@ let to_notty_color = function
   | `Dark_gray -> dark_gray
   | `Black -> black
 
-let get_tile (m : Machine.t) tile_number =
+let get_tile (m : Machine.t) ?mode:(tile_data=0x8000) tile_number =
   let open Uint8 in
   let tile_number = Uint8.inj tile_number in
   let c1, c2, c3, c4 =
@@ -27,7 +27,12 @@ let get_tile (m : Machine.t) tile_number =
     (m.gpu.bg_pal lsr Uint8.inj 4) land (inj 0b11),
     (m.gpu.bg_pal lsr Uint8.inj 6) land (inj 0b11)
   in
-  let tile_data_ptr = 0x8000 + (Uint8.proj tile_number) * 0x10 in
+  let tile_data_ptr =
+    if tile_data != 0x9000 then
+      (tile_data + (Uint8.proj tile_number) * 0x10)
+    else
+      (tile_data + (Uint8.to_signed tile_number) * 0x10)
+  in
   pxmatrix 8 4 begin fun x y ->
     let tile_data_ptr = tile_data_ptr + (y * 2) in
     let b1 = Mmu.get m tile_data_ptr in
@@ -53,4 +58,9 @@ let get_tiles (m : Machine.t) tiles =
   end tiles
   |> Notty.I.vcat
 
-let tile_addr tile =  0x8000 + tile * 0x10
+let tile_addr mode tile =
+  let tile = Uint8.inj tile in
+  if mode != 0x9000 then
+    (mode + (Uint8.proj tile) * 0x10)
+  else
+    (mode + (Uint8.to_signed tile) * 0x10)
