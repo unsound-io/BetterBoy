@@ -2,16 +2,23 @@ module I = Cartridge_internals
 
 external ( <= ) : int -> int -> bool = "%lessequal"
 external ( >= ) : int -> int -> bool = "%greaterequal"
-  
+
 let is_between v a b = v >= a && v <= b [@@inline]
 
 type impl = {
   get : int -> Uint8.t;
   put : int -> Uint8.t -> unit;
+  rom_bank : unit -> int option;
+  ram_bank : unit -> int option;
 }
 
-let make_void () = { put = (fun _ _ -> ()); get = (fun _ -> Uint8.zero); }
-                   
+let make_void () = {
+  put = (fun _ _ -> ());
+  get = (fun _ -> Uint8.zero);
+  rom_bank = (fun () -> None);
+  ram_bank = (fun () -> None);
+}
+
 let make_mbc0 t =
   let get = function
     | addr when is_between addr 0x0000 0x7FFF -> Bytes.get t addr
@@ -19,9 +26,13 @@ let make_mbc0 t =
     | _ -> assert false
   in
   let put _ _ = () in
+  let rom_bank () =  Some 0 in
+  let ram_bank () =  Some 0 in
   {
     get;
     put;
+    rom_bank;
+    ram_bank;
   }
 
 let make_mbc1 rom =
@@ -102,11 +113,16 @@ let make_mbc1 rom =
     | _ -> Uint8.inj 0xFF
   in
 
+  let rom_bank () =  Some !bank1 in
+  let ram_bank () =  Some !bank2 in
+
   {
     get;
     put;
+    rom_bank;
+    ram_bank;
   }
-  
+
 let make_mbc3 rom =
 
   let ram_size = I.ram_size rom in
@@ -138,7 +154,7 @@ let make_mbc3 rom =
         match !ram_enabled with
         | false -> ()
         | true ->
-          let addr = ((addr land 0x1FFF) + !ram_bank * 0x2000) land (ram_size - 1) in 
+          let addr = ((addr land 0x1FFF) + !ram_bank * 0x2000) land (ram_size - 1) in
           Bytes.set ram addr v
       end
     | _ -> assert false
@@ -158,9 +174,13 @@ let make_mbc3 rom =
     end
     | _ -> Uint8.inj 0xFF
   in
+  let rom_bank () = Some !rom_bank in
+  let ram_bank () = Some !ram_bank in
   {
     get;
     put;
+    rom_bank;
+    ram_bank;
   }
 
 type t = {
@@ -178,7 +198,7 @@ let make ?rom () =
       | `Rom_only -> make_mbc0 rom
       | `Mbc1 -> make_mbc1 rom
       | `Mbc3 -> make_mbc3 rom
-      | `Unimplemented d -> raise (Unimplemented d)  
+      | `Unimplemented d -> raise (Unimplemented d)
       | _ -> raise (Unimplemented 0x0)
   in
   { impl; }
@@ -186,3 +206,7 @@ let make ?rom () =
 let get { impl = { get; _ }; } = get
 
 let put { impl = { put; _ }; } = put
+
+let rom_bank { impl = { rom_bank; _ }; } = rom_bank ()
+
+let ram_bank { impl = { ram_bank; _ }; } = ram_bank ()
