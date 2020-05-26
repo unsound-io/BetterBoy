@@ -2,14 +2,14 @@ open Common
 open Nottui
 open Notty
 open Betterboy
-    
+
 let backlog = Lwd_table.make ()
 
 let cpu_state (machine : Machine.t) =
   let open Nottui_widgets in
   let checkmark = "✔" in
   let cross = "✘" in
-  let bool b = if b then checkmark else cross in 
+  let bool b = if b then checkmark else cross in
   let cpu = machine.cpu in
   let b = printf ~attr:Notty.A.(fg cyan ++ st bold) "B:%02X " (Uint8.proj cpu.b) in
   let c = printf ~attr:Notty.A.(fg cyan ++ st bold) "C:%02X " (Uint8.proj cpu.c) in
@@ -36,15 +36,15 @@ let sub' str p l =
   if p = 0 && l = String.length str
   then str
   else String.sub str p l
-    
+
 let delete_word s pos =
   let open Astring in
   if pos = 0 then
     (s, pos)
-  else 
+  else
   let tl = String.sub ~start:pos s in
   let hd = String.sub ~start:0 ~stop:pos s in
-  let hd', _ = 
+  let hd', _ =
     match String.Sub.get hd (String.Sub.length hd - 1) with
     | c when Char.Ascii.is_white c ->
       String.Sub.span ~rev:true ~sat:Char.Ascii.is_white hd
@@ -70,13 +70,19 @@ let execute_command backlog s cmd =
         Breakpoints.remove bp s
       else
         Breakpoints.add bp s
-    in 
+    in
     Lwd.set breakpoints b
   | Breakpoints ->
     let b = Lwd.peek breakpoints in
     Breakpoints.iter
       (fun i -> Lwd_table.append' backlog (printf "%04X" i |> Lwd.pure)) b
-  | Step i -> raise (Step i)  
+  | Tile i ->
+    let tile = Tiles.get_tile (Lwd.peek machine) i in
+    Lwd_table.append' backlog (Ui.atom tile |> Lwd.pure)
+  | Tiles range ->
+    let tiles = Tiles.get_tiles (Lwd.peek machine) range in
+    Lwd_table.append' backlog (Ui.atom tiles |> Lwd.pure)
+  | Step i -> raise (Step i)
   | Resume -> raise Resume
   | Quit -> raise Quit
   | Print i ->
@@ -114,9 +120,9 @@ let shell_field state ~on_change =
       match Commands.parse s with
       | Ok cmd ->
         on_change ("", 0, s::hist);
-        execute_command backlog s cmd 
+        execute_command backlog s cmd
       | _ -> ()
-    in  
+    in
 
     let handler = function
       | `Arrow `Up, _ -> begin
@@ -128,8 +134,8 @@ let shell_field state ~on_change =
       | `ASCII 'U', [`Ctrl] -> on_change ("", 0, hist); `Handled
       | `ASCII 'W', [`Ctrl] -> begin
         let (s, pos) = delete_word text pos in
-        on_change (s, pos, hist); `Handled 
-      end 
+        on_change (s, pos, hist); `Handled
+      end
       | `Escape, [] -> Focus.release focus_h; `Handled
       | `ASCII k, _ ->
         let text =
@@ -196,7 +202,7 @@ let shell_field state ~on_change =
   ]
 
 let prompt : (string * int * string list) Lwd.var = Lwd.var ("", 0, [])
-               
+
 let make () =
   Lwd_table.append' backlog (cpu_state (Lwd.peek Common.machine) |> Lwd.pure);
   shell_field (Lwd.get prompt) ~on_change:(Lwd.set prompt)
