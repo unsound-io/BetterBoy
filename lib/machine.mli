@@ -22,13 +22,13 @@ module Cpu : sig
   }
 
   val make : unit -> t
-    
+
 end
 
 module Vram : sig
   type t = Addressable.t
   val range : (int * int)
-end 
+end
 
 module Wram0 : sig
   type t = Addressable.t
@@ -38,7 +38,7 @@ end
 module Wram1 : sig
   type t = Addressable.t
   val range : (int * int)
-end 
+end
 
 module Oam : sig
   type t = Addressable.t
@@ -60,7 +60,7 @@ module Bios : sig
   val range : (int * int)
 end
 
-module Cartridge : sig 
+module Cartridge : sig
   type t = Cartridge.t
   val range : (int * int)
 end
@@ -75,7 +75,7 @@ module Timers : sig
     mutable hours : Uint8.t;
     mutable days : Uint8.t;
   }
-  
+
   type t = {
     mutable main : int;
     mutable sub : int;
@@ -90,8 +90,8 @@ module Timers : sig
   }
 
   val make_rtc : unit -> rtc
-    
-end 
+
+end
 
 module Gpu : sig
 
@@ -119,7 +119,7 @@ module Gpu : sig
     framebuffer : color array array;
   }
 
-end 
+end
 
 module Joypad : sig
 
@@ -131,22 +131,58 @@ type t = {
 
 end
 
-module Square1 : sig
+module Square : sig
 
   type t = {
-    mutable nr10 : Uint8.t; (* 0xFF10 -PPP NSSS  Sweep period, negate, shift *)
-    mutable nr11 : Uint8.t; (* 0xFF11 DDLL LLLL  Duty, Length load (64-L) *)
-    mutable nr12 : Uint8.t; (* 0xFF12 VVVV APPP  Starting volume, Envelope add mode, period  *)
-    mutable nr13 : Uint8.t; (* 0xFF13 FFFF FFFF  Frequency LSB *)
-    mutable nr14 : Uint8.t; (* 0xFF14 TL-- -FFF  Trigger, Length enable, Frequency MSB *)
-    mutable timer : int;
-    mutable timer_load : int;
-    mutable sequence_step : int;
-    mutable volume : int;
-    mutable out_volume : int;
+    channel : [ `SC1 | `SC2 ];
+    mutable duty : Uint8.t;
+    mutable length_load : Uint8.t;
+    mutable env_add_mode : bool;
+    mutable period : Uint8.t;
+    mutable frequency_lsb : Uint8.t;
+    mutable trigger : Uint8.t;
+    mutable frequency_msb : Uint8.t;
     mutable enabled : bool;
+    mutable frequency : int;
+    mutable sweep_timer : Uint8.t;
+    mutable sweep_enable : bool;
+    mutable sweep_freq : int;
+    mutable sweep_period : Uint8.t;
+    mutable sweep_negate : bool;
+    mutable sweep_shift : Uint8.t;
+    mutable sweep_direction : bool;
+    mutable starting_volume : Uint8.t;
+    mutable volume : int;
+    mutable envelope_timer : Uint8.t;
+    mutable envelope_period : Uint8.t;
+    mutable envelope_direction : bool;
+    mutable length_counter : int;
+    mutable length_enabled : bool;
+    mutable timer : int;
+    mutable step : int;
     mutable dac_enabled : bool;
-    mutable length_count : int;
+
+  }
+
+  val make : [`SC1 | `SC2 ] -> t
+
+end
+
+module Audio : sig
+
+  type t = {
+    mutable enabled : bool;
+    mutable frameseq : int;
+    mutable frameseq_counter : int;
+    mutable downsample_count : int;
+    mutable buffer_fill : int;
+    mutable buffer : (int32, Bigarray.int32_elt, Bigarray.c_layout) Bigarray.Array1.t;
+    mutable need_queue : bool;
+    mutable vin_l : bool;
+    mutable vin_r : bool;
+    mutable vol_l : Uint8.t;
+    mutable vol_r : Uint8.t;
+    mutable channelenable : Uint8.t;
   }
 
 end
@@ -164,8 +200,11 @@ type t = {
   oam : Oam.t;
   cartridge : Cartridge.t;
   joypad : Joypad.t;
-  sqr1 : Square1.t;
+  sc1 : Square.t;
+  sc2 : Square.t;
+  apu : Audio.t;
   mutable serial : Uint8.t option;
+
 }
 
 val make : ?rom:bytes -> ?bios:bytes -> unit -> t

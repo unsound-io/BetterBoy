@@ -1,98 +1,135 @@
-(* res: 
+(* res:
    https://emudev.de/gameboy-emulator/bleeding-ears-time-to-add-audio/
    https://www.reddit.com/r/EmuDev/comments/5gkwi5/gb_apu_sound_emulation/
    https://gbdev.gg8.se/wiki/index.php?title=Gameboy_sound_hardware
+   https://github.com/AntonioND/giibiiadvance/blob/master/docs/other_docs/GBSOUND.txt
 *)
 
-module Square1 = struct
+let reset (m : Machine.t) =
+  m.apu.enabled <- false;
+  m.apu.buffer_fill <- 0;
+  Bigarray.Array1.fill m.apu.buffer 0l;
+  m.apu.vin_l <- false;
+  m.apu.vin_r <- false;
+  m.apu.vol_r <- Uint8.zero;
+  m.apu.vol_l <- Uint8.zero;
+  m.apu.channelenable <- Uint8.zero;
+  m.apu.downsample_count <- 95;
+  m.apu.frameseq_counter <- 8192;
+  m.apu.frameseq <- 0;
+  Square.reset m.sc1
 
-  open Machine.Square1
-         
-  let sweep_period { nr10; _ } = Uint8.((nr10 lsr (inj 4)) land (inj 0b111))
-  let sweep_negate { nr10; _ } = Uint8.((nr10 land (inj 0b1000)) land (inj 0b1000))
-  let sweep_shift { nr10; _ } = Uint8.(nr10 land (inj 0b111))
+let set (m : Machine.t) a v =
+  match a with
+  | 0xFF26 ->
+    if m.apu.enabled && not (Uint8.is_bit_set v 7) then
+      reset m
+    else if not m.apu.enabled && (Uint8.is_bit_set v 7) then begin
+      m.apu.enabled <- true;
+      m.apu.frameseq_counter <- 0;
+      m.apu.frameseq <- 0;
+      m.sc1.step <- 0
+    end
+  | 0xFF24 ->
+    if m.apu.enabled then begin
+      m.apu.vin_l <- Uint8.is_bit_set v 7;
+      m.apu.vol_l <- Uint8.((v lsr inj 4) land inj 0b111);
+      m.apu.vin_r <- Uint8.is_bit_set v 3;
+      m.apu.vol_r <- Uint8.(v land inj 0b111);
+    end
+  | 0xFF25 -> begin
+      if m.apu.enabled then
+        begin
+          m.apu.channelenable <- v
+        end
+  end
+  | _ -> assert false
 
-  let duty { nr11; _ } = Uint8.((nr11 lsr (inj 6)) land (inj 0b11))
-  let length_load { nr11; _ } = Uint8.(nr11 land (inj 0b111111))
+let get (m : Machine.t) a =
+  let open Uint8 in
+  match a with
+  | 0xFF24 ->
+    (if m.apu.vin_l then inj 0b10000000 else zero)
+    lor
+    (m.apu.vol_l lsl inj 4)
+    lor
+    (if m.apu.vin_r then inj 0b100 else zero)
+    lor
+    m.apu.vol_r
+  | 0xFF25 -> m.apu.channelenable
+  | 0xFF26 ->
+    (if m.apu.enabled then inj 0b10000000 else zero)
+    lor
+    inj 0b1110000
+    lor
+    (if m.sc1.enabled then one else zero)
+  | _ -> assert false
 
-  (* NR12 FF12 VVVV APPP Starting volume, Envelope add mode, period
-     NR13 FF13 FFFF FFFF Frequency LSB
-     NR14 FF14 TL-- -FFF Trigger, Length enable, Frequency MSB 
-  *)
+let step (m : Machine.t) cycles =
+  let rec aux cycles =
+    if cycles <= 0 then
+      ()
+    else begin
+      m.apu.frameseq_counter <- m.apu.frameseq_counter - 1;
+      if m.apu.frameseq_counter = 0 then (
+        m.apu.frameseq_counter <- 8192;
+        (match m.apu.frameseq with
+         | 0 ->
+           Square.length_tick m.sc1;
+           Square.length_tick m.sc2
+         | 2 ->
+           Square.sweep_tick m.sc1;
+           Square.length_tick m.sc1;
+           Square.length_tick m.sc2
+         | 4 ->
+           Square.length_tick m.sc1;
+           Square.length_tick m.sc2
+         | 6 ->
+           Square.sweep_tick m.sc1;
+           Square.length_tick m.sc1;
+           Square.length_tick m.sc2
+         | 7 ->
+           Square.env_tick m.sc1;
+           Square.env_tick m.sc2
 
-  let starting_volume { nr12; _ } = Uint8.((nr12 lsr inj 4) land inj 0b111)
-  let env_add_mode { nr12; _ } = Uint8.((nr12 lsr inj 3) land inj 0b1)
-  let period { nr12; _ } = Uint8.(nr12 land inj 0b111)
-                                  
-  let frequency_lsb { nr13; _ } = nr13
+        | _ -> ());
+        m.apu.frameseq <- m.apu.frameseq + 1;
+        if m.apu.frameseq >= 8 then
+          m.apu.frameseq <- 0
+      );
 
-  let trigger { nr14; _ } = Uint8.((nr14 lsr inj 6) land inj 0b1)
-  let length_enable { nr14; _ } = Uint8.((nr14 lsr inj 5) land inj 0b1)
-  let frequency_msb { nr14; _ } = Uint8.(nr14 land inj 0b111)
-  
+      Square.step m.sc1;
+      Square.step m.sc2;
 
-  (* duty lookup table:
-     Duty   Waveform    Ratio
-     -------------------------
-     0      00000001    12.5%
-     1      10000001    25%
-     2      10000111    50%
-     3      01111110    75% *)
+      m.apu.downsample_count <- m.apu.downsample_count - 1;
 
-  let duty_cycles = [|
-    [| false; false; false; false; false; false; false; true; |];
-    [| true; false; false; false; false; false; false; true; |];
-    [| true; false; false; false; false; true; true; true; |];
-    [| false; true; true; true; true; true; true; false; |];
-  |]
- 
-  let get t = function
-    | 0xFF10 -> t.nr10
-    | 0xFF11 -> t.nr11
-    | 0xFF12 -> t.nr12
-    | 0xFF13 -> t.nr13
-    | 0xFF14 -> t.nr14
-    | _ -> assert false
+      if m.apu.downsample_count <= 0 then (
+        m.apu.downsample_count <- 42;
+        let sc1 = Square.sample m.sc1 in
+        let sc2 = Square.sample m.sc2 in
+        let l =
+          (if Uint8.is_bit_set m.apu.channelenable 4 then sc1 else 0) |>
+          (+) (if Uint8.is_bit_set m.apu.channelenable 5 then sc2 else 0)
+        in
+        let r =
+          (if Uint8.is_bit_set m.apu.channelenable 0 then sc1 else 0) |>
+          (+) (if Uint8.is_bit_set m.apu.channelenable 1 then sc2 else 0)
+        in
+        let l = (l * ((Uint8.proj m.apu.vol_l) * 16)) mod Uint16.max_int in
+        let r = (r * ((Uint8.proj m.apu.vol_r) * 16)) mod Uint16.max_int in
+        m.apu.buffer.{m.apu.buffer_fill} <- Int32.of_int ((l lsl 16) lor r);
+        m.apu.buffer_fill <- m.apu.buffer_fill + 1;
+      );
 
-  let set t addr v =
-    match addr with
-    | 0xFF10 -> t.nr10 <- v
-    | 0xFF11 -> t.nr11 <- v
-    | 0xFF12 -> t.nr12 <- v
-    | 0xFF13 -> t.nr13 <- v
-    | 0xFF14 -> t.nr14 <- v
-    | _ -> assert false
+      if m.apu.buffer_fill >= 1024 then (
+        m.apu.buffer_fill <- 0;
+        m.apu.need_queue <- true;
+      );
 
-  let step (t : t) =
-    t.timer <- pred t.timer;
-    if t.timer <= 0 then begin
-      t.timer <- (2048 - t.timer_load) * 4; (* wtf *)
-      t.sequence_step <- (succ t.sequence_step) land 0x7  
-    end;
+      aux (cycles - 1)
 
-    if t.enabled && t.dac_enabled then
-      t.out_volume <- t.volume
-    else
-      t.out_volume <- 0;
+    end
 
-    if not duty_cycles.(Uint8.proj (duty t)).(t.sequence_step) then
-      t.out_volume <- 0
+  in
 
- let length_tick (t : t) =
-   if (t.length_count > 0 && ((length_enable t) = Uint8.one)) then begin
-     t.length_count <- t.length_count - 1;
-     if t.length_count = 0 then
-       t.enabled <- false
-   end
-
-end 
-
-(* let step (m : Machine.t) cycles =
- *   let rec aux cycles =
- *     if cycles = 0 then
- *       ()
- *     else begin
- *       
- *     end 
- *   in
- *   aux cycles *)
+  aux (cycles)

@@ -1,7 +1,7 @@
-    
+
 let handle_interrupts (m : Machine.t) =
   let open Uint8 in
-  let dispatch isf int handler = 
+  let dispatch isf int handler =
     let sp = m.cpu.sp - 2 in
     Mmu.put_u16 m sp m.cpu.pc;
     let pc = handler in
@@ -10,7 +10,7 @@ let handle_interrupts (m : Machine.t) =
     m.cpu.sp <- sp;
     m.cpu.pc <- pc;
     m.cpu.halted <- halted;
-    m.cpu.ime <- false 
+    m.cpu.ime <- false
   in
   match m.cpu.ime with
   | false -> ()
@@ -41,7 +41,7 @@ let handle_interrupts (m : Machine.t) =
 
 let step (m : Machine.t) =
   try
-  let cur = Mmu.get m m.cpu.pc in 
+  let cur = Mmu.get m m.cpu.pc in
   if m.cpu.in_bios && m.cpu.pc = 0x100 then
     m.cpu.in_bios <- false;
   let cycles =
@@ -51,10 +51,10 @@ let step (m : Machine.t) =
       try
         match Uint8.proj cur with
         | 0xCB ->
-          let cur = Mmu.get m (m.cpu.pc + 1) in 
+          let cur = Mmu.get m (m.cpu.pc + 1) in
           let op = Instrs.compile_extended cur in
           m.cpu.pc <- m.cpu.pc + 2;
-          Alu.dispatch m op 
+          Alu.dispatch m op
         | code ->
           let op = Instrs.compile code in
           m.cpu.pc <- succ m.cpu.pc;
@@ -72,7 +72,8 @@ let step (m : Machine.t) =
   Gpu_exec.step m cycles;
   if m.gpu.redraw then
     Timers.rtc_tick m;
+  Spu.step m cycles;
   handle_interrupts m
-  with 
+  with
   | exn ->
     failwith (Printf.sprintf "exception at %04X: %s" m.cpu.pc (Printexc.to_string exn))

@@ -42,34 +42,34 @@ module Cpu = struct
     in_bios = true;
   }
 
-end 
+end
 
 module Vram = struct
-  
+
   type t = Addressable.t
   let range = 0x8000, 0x9FFF
   let make () = Addressable.make ~name:"vram" range
-      
+
 end
 
 module Wram0 = struct
-  
+
   type t = Addressable.t
   let range = 0xC000, 0xCFFF
   let make () = Addressable.make ~name:"wram0" range
-      
+
 end
 
 module Wram1 = struct
-  
+
   type t = Addressable.t
   let range = 0xD000, 0xDFFF
   let make () = Addressable.make ~name:"wram1" range
-      
+
 end
 
 module Oam = struct
-  
+
   type t = Addressable.t
   let range = 0xFE00, 0xFE9F
   let make () = Addressable.make ~name:"oam" range
@@ -105,12 +105,12 @@ module Bios = struct
 
 end
 
-module Cartridge = struct 
+module Cartridge = struct
 
   type t = Cartridge.t
   let range = 0x0000, 0x7FFF
-  let make ?rom () = Cartridge.make ?rom () 
-                       
+  let make ?rom () = Cartridge.make ?rom ()
+
 end
 
 module Timers = struct
@@ -123,7 +123,7 @@ module Timers = struct
     mutable hours : Uint8.t;
     mutable days : Uint8.t;
   }
-  
+
   type t = {
     mutable main : int;
     mutable sub : int;
@@ -145,7 +145,7 @@ module Timers = struct
     hours = Uint8.zero;
     days = Uint8.zero;
   }
-  
+
   let make () = {
     main = 0;
     sub = 0;
@@ -159,7 +159,7 @@ module Timers = struct
     last_rtc = 0;
   }
 
-end 
+end
 
 module Gpu = struct
 
@@ -208,7 +208,7 @@ module Gpu = struct
     retrace_ly = 0;
   }
 
-end 
+end
 
 module Joypad = struct
 
@@ -226,40 +226,101 @@ let make () = {
 
 end
 
-module Square1 = struct
+module Square = struct
 
   type t = {
-    mutable nr10 : Uint8.t; (* 0xFF10 -PPP NSSS  Sweep period, negate, shift *)
-    mutable nr11 : Uint8.t; (* 0xFF11 DDLL LLLL  Duty, Length load (64-L) *)
-    mutable nr12 : Uint8.t; (* 0xFF12 VVVV APPP  Starting volume, Envelope add mode, period  *)
-    mutable nr13 : Uint8.t; (* 0xFF13 FFFF FFFF  Frequency LSB *)
-    mutable nr14 : Uint8.t; (* 0xFF14 TL-- -FFF  Trigger, Length enable, Frequency MSB *)
-    mutable timer : int;
-    mutable timer_load : int;
-    mutable sequence_step : int;
-    mutable volume : int;
-    mutable out_volume : int;
+    channel : [ `SC1 | `SC2 ];
+    mutable duty : Uint8.t;
+    mutable length_load : Uint8.t;
+    mutable env_add_mode : bool;
+    mutable period : Uint8.t;
+    mutable frequency_lsb : Uint8.t;
+    mutable trigger : Uint8.t;
+    mutable frequency_msb : Uint8.t;
     mutable enabled : bool;
+    mutable frequency : int;
+    mutable sweep_timer : Uint8.t;
+    mutable sweep_enable : bool;
+    mutable sweep_freq : int;
+    mutable sweep_period : Uint8.t;
+    mutable sweep_negate : bool;
+    mutable sweep_shift : Uint8.t;
+    mutable sweep_direction : bool;
+    mutable starting_volume : Uint8.t;
+    mutable volume : int;
+    mutable envelope_timer : Uint8.t;
+    mutable envelope_period : Uint8.t;
+    mutable envelope_direction : bool;
+    mutable length_counter : int;
+    mutable length_enabled : bool;
+    mutable timer : int;
+    mutable step : int;
     mutable dac_enabled : bool;
-    mutable length_count : int;
+  }
+
+  let make mode : t = {
+    channel = mode;
+    sweep_period = Uint8.zero;
+    sweep_negate = false;
+    sweep_shift = Uint8.zero;
+    duty = Uint8.zero;
+    length_load = Uint8.zero;
+    starting_volume = Uint8.zero;
+    env_add_mode = false;
+    period = Uint8.zero;
+    frequency_lsb = Uint8.zero;
+    trigger = Uint8.zero;
+    length_enabled = false;
+    frequency_msb = Uint8.zero;
+    timer = 0;
+    length_counter = 0;
+    volume = 0;
+    step = 0;
+    enabled = false;
+    dac_enabled = false;
+    envelope_period = Uint8.zero;
+    sweep_enable = false;
+    sweep_timer = Uint8.zero;
+    frequency = 0;
+    sweep_freq = 0;
+    sweep_direction = false;
+    envelope_timer = Uint8.zero;
+    envelope_direction = false;
+  }
+
+end
+
+module Audio = struct
+
+  type t = {
+    mutable enabled : bool;
+    mutable frameseq : int;
+    mutable frameseq_counter : int;
+    mutable downsample_count : int;
+    mutable buffer_fill : int;
+    mutable buffer : (int32, Bigarray.int32_elt, Bigarray.c_layout) Bigarray.Array1.t;
+    mutable need_queue : bool;
+    mutable vin_l : bool;
+    mutable vin_r : bool;
+    mutable vol_l : Uint8.t;
+    mutable vol_r : Uint8.t;
+    mutable channelenable : Uint8.t;
   }
 
   let make () = {
-    nr10 = Uint8.zero;
-    nr11 = Uint8.zero;
-    nr12 = Uint8.zero;
-    nr13 = Uint8.zero;
-    nr14 = Uint8.zero;
-    timer = 0;
-    timer_load = 0;
-    sequence_step = 0;
-    volume = 0;
-    out_volume = 0;
     enabled = false;
-    dac_enabled = false;
-    length_count = 0;  
+    frameseq = 0;
+    frameseq_counter = 0;
+    downsample_count = 0;
+    vin_l = false;
+    vin_r = false;
+    vol_l = Uint8.zero;
+    vol_r = Uint8.zero;
+    buffer_fill = 0;
+    need_queue = false;
+    buffer = Bigarray.Array1.create Bigarray.int32 Bigarray.c_layout 1024;
+    channelenable = Uint8.zero;
   }
-
 end
 
 type t = {
@@ -275,7 +336,9 @@ type t = {
   oam : Oam.t;
   cartridge : Cartridge.t;
   joypad : Joypad.t;
-  sqr1 : Square1.t;
+  sc1 : Square.t;
+  sc2 : Square.t;
+  apu : Audio.t;
   mutable serial : Uint8.t option;
 }
 
@@ -293,5 +356,7 @@ let make ?rom ?bios () = {
   joypad = Joypad.make ();
   cartridge = Cartridge.make ?rom ();
   serial = None;
-  sqr1 = Square1.make ();
+  sc1 = Square.make `SC1;
+  sc2 = Square.make `SC1;
+  apu = Audio.make ();
 }

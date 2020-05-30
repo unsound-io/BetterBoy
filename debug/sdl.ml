@@ -10,6 +10,7 @@ type t = {
   machine : Machine.t;
   win : Tsdl.Sdl.window;
   event : Tsdl.Sdl.event;
+  device_id : int32;
   mutable quit : bool;
   mutable last_tick : Int32.t;
   mutable last_poll : Int32.t;
@@ -22,7 +23,7 @@ let teardown t =
   Sdl.destroy_window t.win;
   ()
 
-let match_keys events = 
+let match_keys events =
   let key = Sdl.(Event.(get events keyboard_keycode)) in
   let open Tsdl.Sdl.K in
   if key = up then `Up
@@ -36,13 +37,7 @@ let match_keys events =
   else if key = p then `P
   else `None
 
-let poll_input ({ event; machine; last_poll; _ } as t) =
-  let ticks = Sdl.get_ticks () in
-  let diff = Int32.(sub ticks last_poll) in
-  if diff < 5l then
-    ()
-  else begin
-  t.last_poll <- ticks;
+let poll_input ({ event; machine; _ } as t) =
   match Sdl.poll_event (Some event) with
   | false -> ()
   | true ->
@@ -68,9 +63,8 @@ let poll_input ({ event; machine; last_poll; _ } as t) =
       | _ -> ()
     end
     | _ -> ()
-end 
 
-let refresh ({ win; last_tick; machine; _ } as t) =
+let refresh ({ win; machine;   _ } as t) =
   poll_input t;
   let fb = machine.gpu.framebuffer in
   let framebuffer = Bigarray.Array1.create Bigarray.int32 Bigarray.c_layout (160 * 144) in
@@ -85,11 +79,11 @@ let refresh ({ win; last_tick; machine; _ } as t) =
   done;
   let aux () =
     let open Rresult.R.Infix in
-    let ticks = Sdl.get_ticks () in
-    let diff = Int32.(sub ticks last_tick) in
-    if diff < (Int32.div 1000l 60l) then
-      Sdl.delay Int32.(sub (Int32.div 1000l 60l) diff);
-    t.last_tick <- ticks;
+    (* let ticks = Sdl.get_ticks () in
+     * let diff = Int32.(sub ticks last_tick) in
+     * if diff < (Int32.div 1000l 59l) then
+     *   Sdl.delay Int32.(sub (Int32.div 1000l 59l) diff);
+     * t.last_tick <- ticks; *)
     Sdl.get_window_surface win >>= fun surface ->
     Sdl.create_rgb_surface ~w:160 ~h:144 ~depth:32
       0x000000l 0x000000l 0x000000l 0x000000l >>= fun sf ->
@@ -104,10 +98,35 @@ let refresh ({ win; last_tick; machine; _ } as t) =
   in
   match aux () with
   | _ -> machine.gpu.redraw <- false
-      
+
+let audio_freq    = 99600
+let audio_samples = 1024
+
+
 let create machine =
-  let inits = Sdl.Init.(everything) in
-  match Sdl.init inits with
+  let audio_setup () =
+    (* let audio_callback' output =
+     *   let open Bigarray in
+     *   Array1.blit machine.Machine.apu.buffer output;
+     * in
+     * audio_callback := (Some (Sdl.audio_callback Bigarray.char audio_callback')); *)
+
+    let desired_audiospec =
+      { Sdl.as_freq = audio_freq;
+        as_format = Sdl.Audio.s16_sys;
+        Sdl.as_channels = 2;
+        Sdl.as_samples = audio_samples;
+        Sdl.as_silence = 0;
+        Sdl.as_size = 0l;
+        Sdl.as_callback = None; }
+    in
+
+    match Sdl.open_audio_device None false desired_audiospec 0 with
+    | Error _ -> Sdl.log "Can't open audio device"; exit 1
+    | Ok (device_id, _) -> device_id
+  in
+
+  match Sdl.init Sdl.Init.everything with
   | Error (`Msg e) -> log_err "Sdl.init: %s" e; assert false
   | Ok () ->
     let flags = Sdl.Window.(shown + opengl) in
@@ -115,8 +134,11 @@ let create machine =
     | Error (`Msg e) -> log_err "Sdl.create_window: %s" e; assert false
     | Ok win ->
       let event = Sdl.Event.create () in
+      let device_id = audio_setup () in
+      let () = Sdl.pause_audio_device device_id false in
       log "SDL started";
       {
+        device_id;
         machine;
         win;
         event;
@@ -135,17 +157,25 @@ let step t =
     Cpu_exec.step machine;
     if machine.gpu.redraw then
       refresh t;
-    poll_input t;
     if Breakpoints.exists (Int.equal machine.cpu.pc) t.breakpoints then
       t.paused <- true;
     (match t.step with
     | Some step -> begin
       if step > 0 then
         t.step <- Some (step - 1)
-      else begin 
+      else begin
         t.step <- None;
         t.paused <- true
       end
-    end 
-    | None -> ())
+    end
+    | None -> ());
+    if machine.apu.need_queue then (
+      match Sdl.queue_audio t.device_id machine.apu.buffer with
+      | Error _ -> assert false
+      | Ok _ ->
+        while Sdl.get_queued_audio_size t.device_id > 4096 do
+          Sdl.delay Int32.one;
+        done;
+        machine.apu.need_queue <- false
+    )
   | { paused = true; _ } -> poll_input t

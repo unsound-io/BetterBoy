@@ -2,9 +2,9 @@ module J = Joypad
 
 external ( <= ) : int -> int -> bool = "%lessequal"
 external ( >= ) : int -> int -> bool = "%greaterequal"
-  
+
 let is_between' v (a, b) = v >= a && v <= b [@@inline]
-    
+
 exception Unimplemented of string
 
 let echo1          = 0xE000, 0xEFFF
@@ -15,10 +15,10 @@ let cartridge_ram  = 0xA000, 0xBFFF
 let get (s : Machine.t) a =
   try
   match a with
-  | 0xFF04 -> s.timers.div 
-  | 0xFF05 -> s.timers.tima 
+  | 0xFF04 -> s.timers.div
+  | 0xFF05 -> s.timers.tima
   | 0xFF06 -> s.timers.tma
-  | 0xFF07 -> s.timers.tac 
+  | 0xFF07 -> s.timers.tac
   | 0xFF00 -> Joypad.get s
   | 0xFF40 -> s.gpu.control_register
   | 0xFF41 -> s.gpu.lcd_register
@@ -32,6 +32,9 @@ let get (s : Machine.t) a =
   | 0xFF49 -> s.gpu.obj_pal1
   | 0xFF4B -> s.gpu.win_x
   | 0xFF4A -> s.gpu.win_y
+  | a when is_between' a (0xFF10, 0xFF14) -> Square.get s.sc1 a
+  | a when is_between' a (0xFF15, 0xFF19) -> Square.get s.sc2 a
+  | a when is_between' a (0xFF24, 0xFF26) -> Spu.get s a
   | a when (is_between' a Machine.Bios.range) &&
            (s.cpu.in_bios = true) -> s.bios.get a
   | a when is_between' a Machine.Cartridge.range || (is_between' a cartridge_ram)-> Cartridge.get s.cartridge a
@@ -75,7 +78,7 @@ let put (s : Machine.t) a v =
   end
   | 0xFF02 -> begin
     if v = Uint8.inj 0x81 then
-      let serial = get s 0xFF01 in 
+      let serial = get s 0xFF01 in
       s.serial <- Some serial
     else
       ()
@@ -84,6 +87,9 @@ let put (s : Machine.t) a v =
   | 0xFF04 -> s.timers.div <- Uint8.zero
   | 0xFF05 -> s.timers.tima <- v
   | 0xFF06 -> s.timers.tma <- v
+  | a when is_between' a (0xff10, 0xff14) -> Square.set s.sc1 v a
+  | a when is_between' a (0xff15, 0xff19) -> Square.set s.sc2 v a
+  | a when is_between' a (0xFF24, 0xFF26) -> Spu.set s a v
   | a when (is_between' a Machine.Bios.range) &&
            (s.cpu.in_bios = true) -> assert false
   | a when is_between' a Machine.Cartridge.range ||
