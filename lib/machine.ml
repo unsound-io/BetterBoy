@@ -290,7 +290,49 @@ module Square = struct
 
 end
 
+module Wave = struct
+
+  type t = {
+    mutable enabled : bool;
+    mutable dac_enabled : bool;
+    mutable length_load : Uint8.t;
+    mutable volume_code : Uint8.t;
+    mutable frequency_lsb : Uint8.t;
+    mutable frequency_msb : Uint8.t;
+    mutable frequency : int;
+    mutable trigger : bool;
+    mutable length_enable : bool;
+    mutable volume : int;
+    mutable length_counter : int;
+    mutable timer : int;
+    mutable pos : int;
+    mutable sample_buffer : Uint8.t;
+    wave_table : Bytes.t;
+  }
+
+  let make () = {
+    enabled = false;
+    dac_enabled = true;
+    length_load = Uint8.zero;
+    volume_code = Uint8.zero;
+    frequency_lsb = Uint8.zero;
+    frequency_msb = Uint8.zero;
+    frequency = 0;
+    trigger = false;
+    length_enable = false;
+    volume = 0;
+    length_counter = 0;
+    timer = 0;
+    pos = 0;
+    sample_buffer = Uint8.zero;
+    wave_table = Bytes.create 32;
+  }
+
+end
+
 module Audio = struct
+
+  let wave_table_range = 0xFF30, 0xFF3F
 
   type t = {
     mutable enabled : bool;
@@ -307,7 +349,7 @@ module Audio = struct
     mutable channelenable : Uint8.t;
   }
 
-  let make () = {
+  let make size = {
     enabled = false;
     frameseq = 0;
     frameseq_counter = 0;
@@ -318,10 +360,18 @@ module Audio = struct
     vol_r = Uint8.zero;
     buffer_fill = 0;
     need_queue = false;
-    buffer = Bigarray.Array1.create Bigarray.int32 Bigarray.c_layout 1024;
+    buffer = Bigarray.Array1.create Bigarray.int32 Bigarray.c_layout size;
     channelenable = Uint8.zero;
   }
+
 end
+
+type config = {
+  bios : Bytes.t option;
+  rom : Bytes.t option;
+  sample_size : int;
+  sample_rate : int;
+}
 
 type t = {
   cpu : Cpu.t;
@@ -338,25 +388,30 @@ type t = {
   joypad : Joypad.t;
   sc1 : Square.t;
   sc2 : Square.t;
+  sc3 : Wave.t;
   apu : Audio.t;
+  config : config;
   mutable serial : Uint8.t option;
 }
 
-let make ?rom ?bios () = {
-  cpu = Cpu.make ();
-  gpu = Gpu.make ();
-  timers = Timers.make ();
-  vram = Vram.make ();
-  wram0 = Wram0.make ();
-  wram1 = Wram1.make ();
-  bios = Bios.make ?bios ();
-  io_ports = Io_ports.make ();
-  hram = Hram.make ();
-  oam = Oam.make ();
-  joypad = Joypad.make ();
-  cartridge = Cartridge.make ?rom ();
-  serial = None;
-  sc1 = Square.make `SC1;
-  sc2 = Square.make `SC1;
-  apu = Audio.make ();
-}
+let make (config : config) =
+  {
+    config;
+    cpu = Cpu.make ();
+    gpu = Gpu.make ();
+    timers = Timers.make ();
+    vram = Vram.make ();
+    wram0 = Wram0.make ();
+    wram1 = Wram1.make ();
+    bios = Bios.make ?bios:config.bios ();
+    cartridge = Cartridge.make ?rom:config.rom ();
+    io_ports = Io_ports.make ();
+    hram = Hram.make ();
+    oam = Oam.make ();
+    joypad = Joypad.make ();
+    serial = None;
+    sc1 = Square.make `SC1;
+    sc2 = Square.make `SC2;
+    sc3 = Wave.make ();
+    apu = Audio.make config.sample_size;
+  }

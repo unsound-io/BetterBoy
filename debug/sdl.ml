@@ -99,10 +99,6 @@ let refresh ({ win; machine;   _ } as t) =
   match aux () with
   | _ -> machine.gpu.redraw <- false
 
-let audio_freq    = 99600
-let audio_samples = 1024
-
-
 let create machine =
   let audio_setup () =
     (* let audio_callback' output =
@@ -112,10 +108,10 @@ let create machine =
      * audio_callback := (Some (Sdl.audio_callback Bigarray.char audio_callback')); *)
 
     let desired_audiospec =
-      { Sdl.as_freq = audio_freq;
+      { Sdl.as_freq = machine.Machine.config.sample_rate;
         as_format = Sdl.Audio.s16_sys;
         Sdl.as_channels = 2;
-        Sdl.as_samples = audio_samples;
+        Sdl.as_samples = machine.config.sample_size;
         Sdl.as_silence = 0;
         Sdl.as_size = 0l;
         Sdl.as_callback = None; }
@@ -173,7 +169,7 @@ let step t =
       match Sdl.queue_audio t.device_id machine.apu.buffer with
       | Error _ -> assert false
       | Ok _ ->
-        while Sdl.get_queued_audio_size t.device_id > 4096 do
+        while Sdl.get_queued_audio_size t.device_id > machine.config.sample_size * 4 do
           Sdl.delay Int32.one;
         done;
         machine.apu.need_queue <- false

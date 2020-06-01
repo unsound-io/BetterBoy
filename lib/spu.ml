@@ -71,22 +71,32 @@ let step (m : Machine.t) cycles =
       ()
     else begin
       m.apu.frameseq_counter <- m.apu.frameseq_counter - 1;
+
+
+      Square.step m.sc1;
+      Square.step m.sc2;
+      Wave.step m;
+
       if m.apu.frameseq_counter = 0 then (
         m.apu.frameseq_counter <- 8192;
         (match m.apu.frameseq with
          | 0 ->
            Square.length_tick m.sc1;
-           Square.length_tick m.sc2
+           Square.length_tick m.sc2;
+           Wave.length_tick m.sc3
          | 2 ->
            Square.sweep_tick m.sc1;
            Square.length_tick m.sc1;
+           Wave.length_tick m.sc3;
            Square.length_tick m.sc2
          | 4 ->
            Square.length_tick m.sc1;
+           Wave.length_tick m.sc3;
            Square.length_tick m.sc2
          | 6 ->
            Square.sweep_tick m.sc1;
            Square.length_tick m.sc1;
+           Wave.length_tick m.sc3;
            Square.length_tick m.sc2
          | 7 ->
            Square.env_tick m.sc1;
@@ -98,30 +108,30 @@ let step (m : Machine.t) cycles =
           m.apu.frameseq <- 0
       );
 
-      Square.step m.sc1;
-      Square.step m.sc2;
-
       m.apu.downsample_count <- m.apu.downsample_count - 1;
 
       if m.apu.downsample_count <= 0 then (
-        m.apu.downsample_count <- 42;
+        m.apu.downsample_count <- (4194304 / m.config.sample_rate);
         let sc1 = Square.sample m.sc1 in
         let sc2 = Square.sample m.sc2 in
+        let sc3 = Wave.sample m.sc3 in
         let l =
           (if Uint8.is_bit_set m.apu.channelenable 4 then sc1 else 0) |>
-          (+) (if Uint8.is_bit_set m.apu.channelenable 5 then sc2 else 0)
+          (+) (if Uint8.is_bit_set m.apu.channelenable 5 then sc2 else 0) |>
+          (+) (if Uint8.is_bit_set m.apu.channelenable 6 then sc3 else 0)
         in
         let r =
           (if Uint8.is_bit_set m.apu.channelenable 0 then sc1 else 0) |>
-          (+) (if Uint8.is_bit_set m.apu.channelenable 1 then sc2 else 0)
+          (+) (if Uint8.is_bit_set m.apu.channelenable 1 then sc2 else 0) |>
+          (+) (if Uint8.is_bit_set m.apu.channelenable 2 then sc3 else 0)
         in
-        let l = (l * ((Uint8.proj m.apu.vol_l) * 16)) mod Uint16.max_int in
-        let r = (r * ((Uint8.proj m.apu.vol_r) * 16)) mod Uint16.max_int in
+        let l = (l * ((Uint8.proj m.apu.vol_l) * 8)) mod Uint16.max_int in
+        let r = (r * ((Uint8.proj m.apu.vol_r) * 8)) mod Uint16.max_int in
         m.apu.buffer.{m.apu.buffer_fill} <- Int32.of_int ((l lsl 16) lor r);
         m.apu.buffer_fill <- m.apu.buffer_fill + 1;
       );
 
-      if m.apu.buffer_fill >= 1024 then (
+      if m.apu.buffer_fill >= m.config.sample_size then (
         m.apu.buffer_fill <- 0;
         m.apu.need_queue <- true;
       );

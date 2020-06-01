@@ -168,7 +168,31 @@ module Square : sig
 
 end
 
+module Wave : sig
+
+  type t = {
+    mutable enabled : bool;
+    mutable dac_enabled : bool;
+    mutable length_load : Uint8.t;
+    mutable volume_code : Uint8.t;
+    mutable frequency_lsb : Uint8.t;
+    mutable frequency_msb : Uint8.t;
+    mutable frequency : int;
+    mutable trigger : bool;
+    mutable length_enable : bool;
+    mutable volume : int;
+    mutable length_counter : int;
+    mutable timer : int;
+    mutable pos : int;
+    mutable sample_buffer : Uint8.t;
+    wave_table : Bytes.t;
+  }
+
+end
+
 module Audio : sig
+
+  val wave_table_range : (int * int)
 
   type t = {
     mutable enabled : bool;
@@ -187,6 +211,13 @@ module Audio : sig
 
 end
 
+type config = {
+  bios : Bytes.t option;
+  rom : Bytes.t option;
+  sample_size : int;
+  sample_rate : int;
+}
+
 type t = {
   cpu : Cpu.t;
   timers : Timers.t;
@@ -202,9 +233,10 @@ type t = {
   joypad : Joypad.t;
   sc1 : Square.t;
   sc2 : Square.t;
+  sc3 : Wave.t;
   apu : Audio.t;
+  config : config;
   mutable serial : Uint8.t option;
-
 }
 
-val make : ?rom:bytes -> ?bios:bytes -> unit -> t
+val make : config -> t

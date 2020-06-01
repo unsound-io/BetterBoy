@@ -34,7 +34,9 @@ let get (s : Machine.t) a =
   | 0xFF4A -> s.gpu.win_y
   | a when is_between' a (0xFF10, 0xFF14) -> Square.get s.sc1 a
   | a when is_between' a (0xFF15, 0xFF19) -> Square.get s.sc2 a
+  | a when is_between' a (0xFF1A, 0xFF1E) -> Wave.get s.sc3 a
   | a when is_between' a (0xFF24, 0xFF26) -> Spu.get s a
+  | a when is_between' a Machine.Audio.wave_table_range -> Wave.get s.sc3 a
   | a when (is_between' a Machine.Bios.range) &&
            (s.cpu.in_bios = true) -> s.bios.get a
   | a when is_between' a Machine.Cartridge.range || (is_between' a cartridge_ram)-> Cartridge.get s.cartridge a
@@ -89,9 +91,11 @@ let put (s : Machine.t) a v =
   | 0xFF06 -> s.timers.tma <- v
   | a when is_between' a (0xff10, 0xff14) -> Square.set s.sc1 v a
   | a when is_between' a (0xff15, 0xff19) -> Square.set s.sc2 v a
+  | a when is_between' a (0xff1A, 0xff1E) -> Wave.set s.sc3 v a
   | a when is_between' a (0xFF24, 0xFF26) -> Spu.set s a v
   | a when (is_between' a Machine.Bios.range) &&
            (s.cpu.in_bios = true) -> assert false
+  | a when is_between' a Machine.Audio.wave_table_range -> Wave.set s.sc3 v a
   | a when is_between' a Machine.Cartridge.range ||
            is_between' a cartridge_ram -> Cartridge.put s.cartridge a v
   | a when is_between' a Machine.Vram.range -> s.vram.set a v

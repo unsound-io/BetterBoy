@@ -37,7 +37,13 @@ let main cartridge bootrom sym =
      load_file file >>= fun s -> Ok (Some (Symbols.parse (Bytes.to_string s)))
   | None -> Ok None)
   >>= fun sym ->
-  let machine = Machine.make ?bios ~rom () in
+  let cfg = {
+    Betterboy.Machine.sample_rate = 48000;
+    sample_size = 2048;
+    bios;
+    rom = Some rom;
+  } in
+  let machine = Machine.make cfg in
   let state = Sdl.create machine in
   let () =
     match bios with
