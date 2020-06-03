@@ -76,31 +76,37 @@ let step (m : Machine.t) cycles =
       Square.step m.sc1;
       Square.step m.sc2;
       Wave.step m;
+      Noise.step m.sc4;
 
-      if m.apu.frameseq_counter = 0 then (
+      if m.apu.frameseq_counter <= 0 then (
         m.apu.frameseq_counter <- 8192;
         (match m.apu.frameseq with
          | 0 ->
            Square.length_tick m.sc1;
            Square.length_tick m.sc2;
+           Noise.length_tick m.sc4;
            Wave.length_tick m.sc3
          | 2 ->
            Square.sweep_tick m.sc1;
-           Square.length_tick m.sc1;
+           Noise.length_tick m.sc4;
            Wave.length_tick m.sc3;
+           Square.length_tick m.sc1;
            Square.length_tick m.sc2
          | 4 ->
-           Square.length_tick m.sc1;
            Wave.length_tick m.sc3;
+           Noise.length_tick m.sc4;
+           Square.length_tick m.sc1;
            Square.length_tick m.sc2
          | 6 ->
+           Wave.length_tick m.sc3;
+           Noise.length_tick m.sc4;
            Square.sweep_tick m.sc1;
            Square.length_tick m.sc1;
-           Wave.length_tick m.sc3;
            Square.length_tick m.sc2
          | 7 ->
            Square.env_tick m.sc1;
-           Square.env_tick m.sc2
+           Square.env_tick m.sc2;
+           Noise.env_tick m.sc4
 
         | _ -> ());
         m.apu.frameseq <- m.apu.frameseq + 1;
@@ -115,15 +121,18 @@ let step (m : Machine.t) cycles =
         let sc1 = Square.sample m.sc1 in
         let sc2 = Square.sample m.sc2 in
         let sc3 = Wave.sample m.sc3 in
+        let sc4 = Noise.sample m.sc4 in
         let l =
           (if Uint8.is_bit_set m.apu.channelenable 4 then sc1 else 0) |>
           (+) (if Uint8.is_bit_set m.apu.channelenable 5 then sc2 else 0) |>
-          (+) (if Uint8.is_bit_set m.apu.channelenable 6 then sc3 else 0)
+          (+) (if Uint8.is_bit_set m.apu.channelenable 6 then sc3 else 0) |>
+          (+) (if Uint8.is_bit_set m.apu.channelenable 7 then sc4 else 0)
         in
         let r =
           (if Uint8.is_bit_set m.apu.channelenable 0 then sc1 else 0) |>
           (+) (if Uint8.is_bit_set m.apu.channelenable 1 then sc2 else 0) |>
-          (+) (if Uint8.is_bit_set m.apu.channelenable 2 then sc3 else 0)
+          (+) (if Uint8.is_bit_set m.apu.channelenable 2 then sc3 else 0) |>
+          (+) (if Uint8.is_bit_set m.apu.channelenable 3 then sc4 else 0)
         in
         let l = (l * ((Uint8.proj m.apu.vol_l) * 8)) mod Uint16.max_int in
         let r = (r * ((Uint8.proj m.apu.vol_r) * 8)) mod Uint16.max_int in

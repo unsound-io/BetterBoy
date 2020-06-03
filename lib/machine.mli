@@ -190,6 +190,30 @@ module Wave : sig
 
 end
 
+module Noise : sig
+
+  type t = {
+    mutable trigger : bool;
+    mutable length_load : Uint8.t;
+    mutable starting_volume : Uint8.t;
+    mutable env_add_mode : bool;
+    mutable period : Uint8.t;
+    mutable enabled : bool;
+    mutable envelope_timer : Uint8.t;
+    mutable envelope_period : Uint8.t;
+    mutable envelope_direction : bool;
+    mutable length_counter : int;
+    mutable length_enabled : bool;
+    mutable timer : int;
+    mutable clock_shift : Uint8.t;
+    mutable width_mode : bool;
+    mutable volume : int;
+    mutable divisor_code : Uint8.t;
+    mutable lsfr : int;
+  }
+
+end
+
 module Audio : sig
 
   val wave_table_range : (int * int)
@@ -234,6 +258,7 @@ type t = {
   sc1 : Square.t;
   sc2 : Square.t;
   sc3 : Wave.t;
+  sc4 : Noise.t;
   apu : Audio.t;
   config : config;
   mutable serial : Uint8.t option;

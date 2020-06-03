@@ -330,6 +330,50 @@ module Wave = struct
 
 end
 
+module Noise = struct
+
+  type t = {
+    mutable trigger : bool;
+    mutable length_load : Uint8.t;
+    mutable starting_volume : Uint8.t;
+    mutable env_add_mode : bool;
+    mutable period : Uint8.t;
+    mutable enabled : bool;
+    mutable envelope_timer : Uint8.t;
+    mutable envelope_period : Uint8.t;
+    mutable envelope_direction : bool;
+    mutable length_counter : int;
+    mutable length_enabled : bool;
+    mutable timer : int;
+    mutable clock_shift : Uint8.t;
+    mutable width_mode : bool;
+    mutable volume : int;
+    mutable divisor_code : Uint8.t;
+    mutable lsfr : int;
+  }
+
+  let make () : t = {
+    length_load = Uint8.zero;
+    starting_volume = Uint8.zero;
+    env_add_mode = false;
+    period = Uint8.zero;
+    trigger = false;
+    length_enabled = false;
+    timer = 0;
+    length_counter = 0;
+    volume = 0;
+    enabled = false;
+    envelope_period = Uint8.zero;
+    envelope_timer = Uint8.zero;
+    envelope_direction = false;
+    clock_shift = Uint8.zero;
+    divisor_code = Uint8.zero;
+    width_mode = false;
+    lsfr = 0x7FFF;
+  }
+
+end
+
 module Audio = struct
 
   let wave_table_range = 0xFF30, 0xFF3F
@@ -389,6 +433,7 @@ type t = {
   sc1 : Square.t;
   sc2 : Square.t;
   sc3 : Wave.t;
+  sc4 : Noise.t;
   apu : Audio.t;
   config : config;
   mutable serial : Uint8.t option;
@@ -413,5 +458,6 @@ let make (config : config) =
     sc1 = Square.make `SC1;
     sc2 = Square.make `SC2;
     sc3 = Wave.make ();
+    sc4 = Noise.make ();
     apu = Audio.make config.sample_size;
   }

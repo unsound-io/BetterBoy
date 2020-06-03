@@ -160,15 +160,15 @@ let env_tick (t : t) =
   if t.envelope_period > Uint8.zero then begin
     t.envelope_timer <- pred_z' t.envelope_timer;
     if t.envelope_timer = Uint8.zero then begin
-      if t.envelope_direction then (
+      if t.env_add_mode then (
         if t.volume < 0xF then
           t.volume <- succ t.volume;
       ) else (
         if t.volume > 0 then
           t.volume <- pred t.volume;
-      )
-    end;
+      );
     t.envelope_timer <- t.envelope_period
+    end;
   end
 
 let sweep_tick t =
