@@ -7,6 +7,7 @@ let cfg = {
   sample_size = 2048;
   bios = None;
   rom = None;
+  sav = None;
 }
 
 module Breakpoints = Set.Make(Int)

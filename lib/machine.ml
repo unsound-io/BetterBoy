@@ -109,7 +109,7 @@ module Cartridge = struct
 
   type t = Cartridge.t
   let range = 0x0000, 0x7FFF
-  let make ?rom () = Cartridge.make ?rom ()
+  let make ?rom ?sav () = Cartridge.make ?rom ?sav ()
 
 end
 
@@ -413,6 +413,7 @@ end
 type config = {
   bios : Bytes.t option;
   rom : Bytes.t option;
+  sav : Bytes.t option;
   sample_size : int;
   sample_rate : int;
 }
@@ -449,7 +450,7 @@ let make (config : config) =
     wram0 = Wram0.make ();
     wram1 = Wram1.make ();
     bios = Bios.make ?bios:config.bios ();
-    cartridge = Cartridge.make ?rom:config.rom ();
+    cartridge = Cartridge.make ?rom:config.rom ?sav:config.sav ();
     io_ports = Io_ports.make ();
     hram = Hram.make ();
     oam = Oam.make ();

@@ -10,7 +10,7 @@ open Machine.Wave
 
 let trigger' t =
   t.enabled <- true;
-  if t.length_counter = 0 then
+  if t.length_counter <= 0 then
     t.length_counter <- 256;
   t.timer <- (2048 - t.frequency) * 2;
   t.pos <- 0
@@ -25,7 +25,7 @@ let length_tick (t : t) =
 let step (m : Machine.t) =
   let t = m.sc3 in
   t.timer <- pred t.timer;
-  if t.timer == 0 then begin
+  if t.timer <= 0 then begin
     t.timer <- (2048 - t.frequency) * 2;
     t.pos <- succ t.pos;
     t.pos <- t.pos land 0x1F;
@@ -87,8 +87,4 @@ let get t a =
 let sample t =
   if not t.enabled && not t.dac_enabled then 0 else begin
     Uint8.proj t.sample_buffer lsr Uint8.proj t.volume_code
-    (* let p = (Uint8.proj t.sample_buffer) lsr Uint8.(if t.volume_code > zero then
-     *                                           proj (pred t.volume_code)
-     *                                                 else 4) in
-     * p *)
   end

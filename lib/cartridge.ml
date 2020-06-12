@@ -8,6 +8,7 @@ let is_between v a b = v >= a && v <= b [@@inline]
 type impl = {
   get : int -> Uint8.t;
   put : int -> Uint8.t -> unit;
+  dump_sram : unit -> Bytes.t option;
   rom_bank : unit -> int option;
   ram_bank : unit -> int option;
 }
@@ -17,6 +18,7 @@ let make_void () = {
   get = (fun _ -> Uint8.zero);
   rom_bank = (fun () -> None);
   ram_bank = (fun () -> None);
+  dump_sram = (fun () -> None);
 }
 
 let make_mbc0 t =
@@ -28,21 +30,37 @@ let make_mbc0 t =
   let put _ _ = () in
   let rom_bank () =  Some 0 in
   let ram_bank () =  Some 0 in
+  let dump_sram () = None in
   {
     get;
     put;
     rom_bank;
     ram_bank;
+    dump_sram;
   }
 
-let make_mbc1 rom =
+let make_mbc1 ?sav rom =
   let ram_size = I.ram_size rom in
   let rom_size = Bytes.length rom in
-  let ram = Bytes.create ram_size in
-
-  for i = 0 to (ram_size -1) do
-    Bytes.set ram i '\255'
-  done;
+  let ram =
+    match sav with
+    | Some sav when Bytes.length sav = ram_size -> print_endline "du"; sav
+    | Some s ->
+      Printf.printf "%d %d\n" (Bytes.length s) ram_size;
+      print_endline "";
+       let ram = Bytes.create ram_size in
+       for i = 0 to (ram_size -1) do
+         Bytes.set ram i '\255'
+       done;
+       ram
+    | _ ->
+      print_endline "omg";
+       let ram = Bytes.create ram_size in
+       for i = 0 to (ram_size -1) do
+         Bytes.set ram i '\255'
+       done;
+       ram
+  in
   let bank1 = ref 1 in
   let bank2 = ref 0 in
   let mode = ref false in
@@ -116,22 +134,39 @@ let make_mbc1 rom =
   let rom_bank () =  Some !bank1 in
   let ram_bank () =  Some !bank2 in
 
+  let dump_sram () = Some ram in
+
   {
     get;
     put;
     rom_bank;
     ram_bank;
+    dump_sram;
   }
 
-let make_mbc3 rom =
+let make_mbc3 ?sav rom =
 
   let ram_size = I.ram_size rom in
   let rom_size = Bytes.length rom in
-  let ram = Bytes.create ram_size in
-
-  for i = 0 to (ram_size -1) do
-    Bytes.set ram i '\255'
-  done;
+  let ram =
+    match sav with
+    | Some sav when Bytes.length sav = ram_size -> print_endline "du"; sav
+    | Some s ->
+      Printf.printf "%d %d\n" (Bytes.length s) ram_size;
+      print_endline "";
+       let ram = Bytes.create ram_size in
+       for i = 0 to (ram_size -1) do
+         Bytes.set ram i '\255'
+       done;
+       ram
+    | _ ->
+      print_endline "omg";
+       let ram = Bytes.create ram_size in
+       for i = 0 to (ram_size -1) do
+         Bytes.set ram i '\255'
+       done;
+       ram
+  in
   let ram_bank = ref 0x0 in
   let rom_bank = ref 0x0 in
   let ram_enabled = ref false in
@@ -176,11 +211,15 @@ let make_mbc3 rom =
   in
   let rom_bank () = Some !rom_bank in
   let ram_bank () = Some !ram_bank in
+
+  let dump_sram () = Some ram in
+
   {
     get;
     put;
     rom_bank;
     ram_bank;
+    dump_sram;
   }
 
 type t = {
@@ -189,15 +228,15 @@ type t = {
 
 exception Unimplemented of int
 
-let make ?rom () =
+let make ?rom ?sav () =
   let impl =
     match rom with
     | None -> make_void ()
     | Some rom ->
       match I.cartridge_kind rom with
       | `Rom_only -> make_mbc0 rom
-      | `Mbc1 -> make_mbc1 rom
-      | `Mbc3 -> make_mbc3 rom
+      | `Mbc1 -> make_mbc1 rom ?sav
+      | `Mbc3 -> make_mbc3 rom ?sav
       | `Unimplemented d -> raise (Unimplemented d)
       | _ -> raise (Unimplemented 0x0)
   in
@@ -206,6 +245,8 @@ let make ?rom () =
 let get { impl = { get; _ }; } = get
 
 let put { impl = { put; _ }; } = put
+
+let dump_sram { impl = { dump_sram; _ }; } = dump_sram
 
 let rom_bank { impl = { rom_bank; _ }; } = rom_bank ()
 

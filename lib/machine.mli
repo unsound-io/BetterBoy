@@ -238,6 +238,7 @@ end
 type config = {
   bios : Bytes.t option;
   rom : Bytes.t option;
+  sav : Bytes.t option;
   sample_size : int;
   sample_rate : int;
 }

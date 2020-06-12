@@ -95,7 +95,7 @@ let compute_sweep t =
 let trigger' t =
   t.enabled <- true;
   t.step <- 0;
-  if t.length_counter = 0 then
+  if t.length_counter <= 0 then
     t.length_counter <- 64;
   t.timer <- (2048 - t.frequency) * 4;
 
@@ -121,7 +121,8 @@ let set t v a =
   | 0xFF16
   | 0xFF11 ->
     t.duty <- Uint8.((v lsr inj 0x6) land inj 0x3);
-    t.length_load <- Uint8.(v land inj 0x3F)
+    t.length_load <- Uint8.(v land inj 0x3F);
+    t.length_counter <- 64 - (Uint8.proj t.length_load)
   | 0xFF17
   | 0xFF12 ->
     t.dac_enabled <- Uint8.(v land inj 0xF8) != Uint8.zero;
@@ -153,7 +154,7 @@ let step (t : t) =
 
 let length_tick (t : t) =
   t.length_counter <- pred_z t.length_counter;
-  if t.length_counter = 0 && t.length_enabled then
+  if t.length_counter <= 0 && t.length_enabled then
     t.enabled <- false
 
 let env_tick (t : t) =
@@ -174,7 +175,7 @@ let env_tick (t : t) =
 let sweep_tick t =
   t.sweep_timer <- Uint8.(pred t.sweep_timer);
   if t.sweep_period > Uint8.zero then begin
-    if t.sweep_enable && t.sweep_timer = Uint8.zero then begin
+    if t.sweep_enable && t.sweep_timer <= Uint8.zero then begin
       let freq = compute_sweep t in
       if freq <= 2047 && t.sweep_shift > Uint8.zero then begin
         t.sweep_freq <- freq;

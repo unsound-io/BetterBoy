@@ -67,7 +67,9 @@ let env_tick (t : t) =
 let set t v a =
   match a with
   | 0xFF1F -> ()
-  | 0xFF20 -> t.length_load <- Uint8.(v land inj 0b111111)
+  | 0xFF20 ->
+    t.length_load <- Uint8.(v land inj 0b11111);
+    t.length_counter <- 64 - Uint8.proj t.length_load;
   | 0xFF21 ->
     t.starting_volume <- Uint8.((v lsr inj 4) land inj 0xF);
     t.volume <- Uint8.proj t.starting_volume;

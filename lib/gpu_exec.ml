@@ -128,9 +128,8 @@ let render_line_obj (m : Machine.t) =
   match Control.(is_flag_set obj_on m) with
   | false -> ()
   | true  ->
-
     let rec loop i =
-    if i >= 0 then begin
+      if i >= 0 then begin
       let obj_y = get_n_oam m i in
       let obj_size = Control.get_obj_size m in
       let height = match obj_size with `Eight -> 8 | `Sixteen -> 16 in
@@ -289,7 +288,7 @@ let step (t : Machine.t) cycles =
       else begin
         t.gpu.clock <- clock;
         t.gpu.ly <- ly;
-      end 
+      end
     | _ -> t.gpu.clock <- clock
   end;
   if t.gpu.ly = t.gpu.lyc then begin
