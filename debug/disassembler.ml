@@ -193,10 +193,10 @@ let disassemble (m : Machine.t) symfile =
     | `Scroll `Up   -> Lwd.set cur (Lwd.peek cur - 1); `Handled
     | _ -> `Unhandled
   in
-  Lwd.map2' (Lwd.get cur) (Lwd.get breakpoints) @@ fun cur breakpoints ->
+  Lwd.map2 (Lwd.get cur) (Lwd.get breakpoints) ~f:(fun cur breakpoints ->
   let open Lwd.Infix in
   go cur breakpoints
   >>= fun ui ->
   Ui.mouse_area scroll_handler ui
   |> Ui.keyboard_area focus_handler
-  |> Lwd.return
+  |> Lwd.return)

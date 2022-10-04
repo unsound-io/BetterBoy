@@ -181,7 +181,7 @@ let shell_field state ~on_change =
   in
 
   let node =
-    Lwd.map2 (update focus) (Focus.status focus) state
+    Lwd.map2 (Focus.status focus) state ~f:(update focus) 
   in
 
   let mouse_grab (text, pos, h) ~x ~y:_ = function
@@ -198,7 +198,7 @@ let shell_field state ~on_change =
   in
   [
     l;
-    (Lwd.map2' state node @@ fun state content -> Ui.mouse_area (mouse_grab state) content)
+    (Lwd.map2 state node ~f:(fun state content -> Ui.mouse_area (mouse_grab state) content))
   ]
 
 let prompt : (string * int * string list) Lwd.var = Lwd.var ("", 0, [])

@@ -18,4 +18,4 @@ let info =
     `S Manpage.s_bugs;
   ]
   in
-  Term.info "GoodBoy" ~version:"%‌%VERSION%%" ~doc ~exits:Term.default_exits ~man
+Cmd.info "GoodBoy" ~version:"%‌%VERSION%%" ~doc ~exits:Cmd.Exit.defaults ~man

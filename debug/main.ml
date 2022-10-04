@@ -95,4 +95,9 @@ let main cartridge bootrom sym =
 
 let () =
   let open Cmdliner in
-  Term.exit @@ Term.eval Term.(const main  $ Args.cartridge $ Args.bootrom $ Args.sym, Args.info)
+  let res = 
+    Cmd.eval_value (Cmd.v Args.info Term.(const main  $ Args.cartridge $ Args.bootrom $ Args.sym))
+  in
+  match res with
+  | Ok _ -> ()
+  | Error _ -> ( )
